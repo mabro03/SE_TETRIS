@@ -178,21 +178,21 @@ public class SceneRenderer  {
     // 빈 칸을 제외한 블럭 모양을 중앙에 그린다. 원본 모양이나 보드상의 위치는 변경하지 않는다.
     private void DrawBlockPreview(Canvas canvas, BlockData block, double top, double height) {
         if (block == null) return;
-        int[][] shape = block.GetShape(); // TODO:이거 bool타입으로 바뀌면 수정 해야함.
+        boolean[][] shape = block.GetShape();
         int minRow = shape.length;
         int maxRow = -1;
         int minCol = Integer.MAX_VALUE;
         int maxCol = -1;
         for (int row = 0; row < shape.length; row++) {
             for (int col = 0; col < shape[row].length; col++) {
-                if (shape[row][col] == 0) continue;
+                if (!shape[row][col]) continue;
                 minRow = Math.min(minRow, row);
                 maxRow = Math.max(maxRow, row);
                 minCol = Math.min(minCol, col);
                 maxCol = Math.max(maxCol, col);
             }
         }
-        
+
         if (maxRow < 0) return;
         int rows = maxRow - minRow + 1;
         int cols = maxCol - minCol + 1;
@@ -202,14 +202,13 @@ public class SceneRenderer  {
         if (side <= 0) return;
         double startX = (canvas.getWidth() - cols * side) / 2;
         double startY = top + (height - rows * side) / 2;
-        java.awt.Color color = block.GetCurrentColor(sceneRenderData.colorMode);
+        Color color = block.GetCurrentColor();
         GraphicsContext graphicsContext = canvas.getGraphicsContext2D();
-        graphicsContext.setFill(Color.rgb(color.getRed(), color.getGreen(), color.getBlue(),
-                color.getAlpha() / 255.0));
+        graphicsContext.setFill(color);
         graphicsContext.setStroke(sceneRenderData.borderColor);
         for (int row = minRow; row <= maxRow; row++) {
             for (int col = 0; col < shape[row].length; col++) {
-                if (shape[row][col] == 0) continue;
+                if (!shape[row][col]) continue;
                 double x = startX + (col - minCol) * side;
                 double y = startY + (row - minRow) * side;
                 graphicsContext.fillRect(x, y, side, side);

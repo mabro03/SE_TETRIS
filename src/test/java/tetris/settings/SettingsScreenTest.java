@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
@@ -13,7 +14,10 @@ import javafx.application.Platform;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.TabPane;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import org.junit.jupiter.api.BeforeAll;
@@ -48,11 +52,35 @@ class SettingsScreenTest {
 
             screen.makeSS(stage, scene, () -> backCount[0]++, new SettingsStore(settingsFile));
             BorderPane root = screen.showSS();
-            VBox bottom = (VBox) root.getBottom();
-            Button back = (Button) bottom.getChildren().get(1);
+            HBox bottom = (HBox) root.getBottom();
+            Button back = (Button) bottom.getChildren().get(0);
+            HBox keyActions = (HBox) bottom.getChildren().get(2);
 
-            assertEquals("설정", ((Label) root.getTop()).getText());
-            assertEquals("스코어보드 초기화", ((Button) bottom.getChildren().get(0)).getText());
+            TabPane settingsTabs = (TabPane) root.getCenter();
+            VBox display = (VBox) ((ScrollPane) settingsTabs.getTabs().get(0).getContent()).getContent();
+            VBox multi = (VBox) ((ScrollPane) settingsTabs.getTabs().get(2).getContent()).getContent();
+            List<String> multiLabels = multi.lookupAll(".label").stream()
+                    .map(node -> ((Label) node).getText())
+                    .toList();
+
+            assertEquals(null, root.getTop());
+            assertEquals(3, settingsTabs.getTabs().size());
+            assertEquals("화면", settingsTabs.getTabs().get(0).getText());
+            assertEquals("키설정", settingsTabs.getTabs().get(1).getText());
+            assertEquals("멀티 설정", settingsTabs.getTabs().get(2).getText());
+            assertEquals("스코어보드 초기화", ((Button) display.getChildren().get(6)).getText());
+            assertTrue(multiLabels.contains("공통 키 설정"));
+            assertTrue(multiLabels.contains("Player 1"));
+            assertTrue(multiLabels.contains("Player 2"));
+            assertTrue(multiLabels.contains("일시정지"));
+            assertTrue(multiLabels.contains("왼쪽 이동"));
+            assertFalse(keyActions.isVisible());
+            settingsTabs.getSelectionModel().select(1);
+            assertTrue(keyActions.isVisible());
+            settingsTabs.getSelectionModel().select(2);
+            assertTrue(keyActions.isVisible());
+            settingsTabs.getSelectionModel().select(0);
+            assertFalse(keyActions.isVisible());
             assertEquals("뒤로가기", back.getText());
             assertEquals(180, back.getPrefWidth());
             assertEquals(50, back.getPrefHeight());

@@ -32,6 +32,15 @@ public final class KeyBindingSettings {
         public String getDisplayName() {
             return displayName;
         }
+
+        // 플레이어가 늘어도 한 번만 있는 키. 나머지는 플레이어마다 추가된다.
+        public boolean isCommon() {
+            return this == PAUSE;
+        }
+
+        public static List<ActionType> valuesList() {
+            return List.of(values());
+        }
     }
 
     // 역할별 키 저장
@@ -47,6 +56,32 @@ public final class KeyBindingSettings {
         bindings.put(ActionType.ROTATE_COUNTERCLOCK, List.of(KeyCode.Z, KeyCode.CONTROL));
         bindings.put(ActionType.HOLD, List.of(KeyCode.SHIFT, KeyCode.C));
         bindings.put(ActionType.PAUSE, List.of(KeyCode.ESCAPE));
+    }
+
+    // 플레이어1의 키 배정 회전과 홀드는 JKL, 하드 드롭은 마침표
+    public static KeyBindingSettings player1LocalDefaults() {
+        KeyBindingSettings settings = new KeyBindingSettings();
+        settings.setKeyCode(ActionType.MOVE_LEFT, KeyCode.LEFT);
+        settings.setKeyCode(ActionType.MOVE_RIGHT, KeyCode.RIGHT);
+        settings.setKeyCode(ActionType.SOFT_DROP, KeyCode.DOWN);
+        settings.setKeyCode(ActionType.HARD_DROP, KeyCode.PERIOD);
+        settings.setKeyCode(ActionType.ROTATE_COUNTERCLOCK, KeyCode.J);
+        settings.setKeyCode(ActionType.ROTATE_CLOCK, KeyCode.K);
+        settings.setKeyCode(ActionType.HOLD, KeyCode.L);
+        return settings;
+    }
+
+    // 플레이어2의 키 배정 회전과 홀드는 CVB, 하드 드롭은 스페이스
+    public static KeyBindingSettings player2LocalDefaults() {
+        KeyBindingSettings settings = new KeyBindingSettings();
+        settings.setKeyCode(ActionType.MOVE_LEFT, KeyCode.A);
+        settings.setKeyCode(ActionType.MOVE_RIGHT, KeyCode.D);
+        settings.setKeyCode(ActionType.SOFT_DROP, KeyCode.S);
+        settings.setKeyCode(ActionType.HARD_DROP, KeyCode.SPACE);
+        settings.setKeyCode(ActionType.ROTATE_COUNTERCLOCK, KeyCode.C);
+        settings.setKeyCode(ActionType.ROTATE_CLOCK, KeyCode.V);
+        settings.setKeyCode(ActionType.HOLD, KeyCode.B);
+        return settings;
     }
 
     // 동작 순서와 같은 길이의 키 배열로 각 역할의 대표 키를 지정
@@ -97,9 +132,15 @@ public final class KeyBindingSettings {
         }
     }
 
+    // 기본 키 배정으로 설정 초기화
     public void resetToDefaults() {
-        KeyBindingSettings defaults = new KeyBindingSettings();
-        bindings.clear();
-        bindings.putAll(defaults.bindings);
+        copyFrom(new KeyBindingSettings());
+    }
+
+    // 키 배정을 다른 설정에서 복사
+    public void copyFrom(KeyBindingSettings source) {
+        for (ActionType actionType : ActionType.values()) {
+            setKeyCodes(actionType, source.getKeyCodes(actionType));
+        }
     }
 }

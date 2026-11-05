@@ -56,11 +56,29 @@ public final class GameSettings {
 
     public enum GameMode {
         NORMAL("일반 모드"),
-        ITEM("아이템 모드");
+        ITEM("아이템 모드"),
+        TIMELIMIT("시간제한 모드");
 
         private final String displayName;
 
         GameMode(String displayName) {
+            this.displayName = displayName;
+        }
+
+        @Override
+        public String toString() {
+            return displayName;
+        }
+    }
+
+    public enum PlayMode {
+        SOLO("SoloPlay"),
+        LOCAL("LocalMultiPlay"),
+        ONLINE("OnlineMultiPlay");
+
+        private final String displayName;
+
+        PlayMode(String displayName) {
             this.displayName = displayName;
         }
 
@@ -75,6 +93,7 @@ public final class GameSettings {
     private final int screenHeight;
     private final int colorMode;
     private final Map<ActionType, List<KeyCode>> keyBindings;
+    private final List<Map<ActionType, List<KeyCode>>> playerKeyBindings;
     private final Difficulty savedDifficulty;
     private final GameMode savedGameMode;
 
@@ -87,15 +106,37 @@ public final class GameSettings {
             Map<ActionType, List<KeyCode>> keyBindings,
             Difficulty savedDifficulty,
             GameMode savedGameMode) {
+        this(resolutionPreset, screenWidth, screenHeight, colorMode, keyBindings,
+                savedDifficulty, savedGameMode, null);
+    }
+
+    public GameSettings(
+            String resolutionPreset,
+            int screenWidth,
+            int screenHeight,
+            int colorMode,
+            Map<ActionType, List<KeyCode>> keyBindings,
+            Difficulty savedDifficulty,
+            GameMode savedGameMode,
+            List<Map<ActionType, List<KeyCode>>> playerKeyBindings) {
         this.savedResolutionPreset = resolutionPreset;
         this.screenWidth = screenWidth;
         this.screenHeight = screenHeight;
         this.colorMode = colorMode;
         this.savedDifficulty = savedDifficulty;
         this.savedGameMode = savedGameMode == null ? GameMode.NORMAL : savedGameMode;
+        this.keyBindings = copyBindings(keyBindings);
+        if (playerKeyBindings == null || playerKeyBindings.isEmpty()) {
+            this.playerKeyBindings = List.of(this.keyBindings);
+        } else {
+            this.playerKeyBindings = playerKeyBindings.stream().map(this::copyBindings).toList();
+        }
+    }
+
+    private Map<ActionType, List<KeyCode>> copyBindings(Map<ActionType, List<KeyCode>> source) {
         EnumMap<ActionType, List<KeyCode>> copiedBindings = new EnumMap<>(ActionType.class);
-        keyBindings.forEach((action, keys) -> copiedBindings.put(action, List.copyOf(keys)));
-        this.keyBindings = Collections.unmodifiableMap(copiedBindings);
+        source.forEach((action, keys) -> copiedBindings.put(action, List.copyOf(keys)));
+        return Collections.unmodifiableMap(copiedBindings);
     }
 
     public Difficulty difficulty() {
@@ -111,11 +152,26 @@ public final class GameSettings {
                 colorMode,
                 keyBindings,
                 difficulty == null ? savedDifficulty : difficulty,
-                savedGameMode);
+                savedGameMode,
+                playerKeyBindings);
     }
 
     public GameMode gameMode() {
         return savedGameMode;
+    }
+
+    // 해상도 등 현재 설정은 유지하고 로컬 플레이어 키만 바꾼 스냅샷을 만든다.
+    public GameSettings withPlayerKeyBindings(List<Map<ActionType, List<KeyCode>>> players) {
+        Map<ActionType, List<KeyCode>> firstPlayer = players.get(0);
+        return new GameSettings(
+                savedResolutionPreset,
+                screenWidth,
+                screenHeight,
+                colorMode,
+                firstPlayer,
+                savedDifficulty,
+                savedGameMode,
+                players);
     }
 
     public String resolutionPreset() {
@@ -136,5 +192,10 @@ public final class GameSettings {
 
     public Map<ActionType, List<KeyCode>> keyBindings() {
         return keyBindings;
+    }
+
+    // 로컬 모드는 플레이어 수만큼, 그 외에는 현재 키 설정 하나다.
+    public List<Map<ActionType, List<KeyCode>>> playerKeyBindings() {
+        return playerKeyBindings;
     }
 }

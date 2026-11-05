@@ -9,12 +9,14 @@ import javafx.scene.control.Button; // 역할별 키 버튼
 import javafx.scene.control.Label; // 상태 안내 문구
 import javafx.scene.input.KeyCode; // 입력된 키 종류
 import javafx.scene.input.KeyEvent; // 키보드 이벤트
+import javafx.scene.control.TabPane;
 import javafx.scene.layout.HBox; // 역할 행
 import javafx.scene.layout.VBox; // 역할 행 목록
 import javafx.stage.Stage; // 창 크기 변경을 위해 필요
 import tetris.scoreboard.ScoreStorage;
 import tetris.settings.KeyBindingSettings.ActionType;
 
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -39,7 +41,16 @@ public class SettingsController {
     private final List<Button> navigationButtons;
     private int selectedButtonIndex;
     private final Map<ActionType, Button> keyButtons = new EnumMap<>(ActionType.class); // 역할과 버튼 연결
+    private Label localStatus;
+    private VBox localCommonRows;
+    private HBox keyActionBox;
+    private List<VBox> localPlayerRows = List.of();
+    private final List<LocalKeyButton> localKeyButtons = new ArrayList<>();
     private ActionType actionWaitingForKey; // 새 키 입력을 기다리는 역할
+    private KeyBindingSettings bindingsWaitingForKey;
+    private Button buttonWaitingForKey;
+    private Label statusWaitingForKey;
+    private boolean waitingLocalKeys;
     private final EventHandler<KeyEvent> keyCaptureHandler = this::captureKeyBinding;
     private boolean keyCaptureActive;
 
@@ -75,6 +86,19 @@ public class SettingsController {
             saveSettingsButton, resetSettingsButton, resetScoreButton, backButton);
     }
 
+    public void attachLocalKeys(Label localStatus, VBox localCommonRows, List<VBox> localPlayerRows) {
+        this.localStatus = localStatus;
+        this.localCommonRows = localCommonRows;
+        this.localPlayerRows = localPlayerRows;
+    }
+
+    public void attachTabActions(TabPane settingsTabs, HBox keyActionBox) {
+        this.keyActionBox = keyActionBox;
+        settingsTabs.getSelectionModel().selectedIndexProperty().addListener(
+                (observable, previous, index) -> applyVisibleKeyActions(index.intValue()));
+        applyVisibleKeyActions(settingsTabs.getSelectionModel().getSelectedIndex());
+    }
+
     // 화면이 열릴 때 저장값을 표시하고 버튼 동작을 연결한다.
     public void initialize() {
         settingsStore.load();
@@ -82,6 +106,7 @@ public class SettingsController {
         bindSettingChanges();
         bindSettingButtons();
         createKeyBindingRows();
+        bindLocalKeys();
     }
 
     private void showSavedSettings() {
@@ -108,18 +133,75 @@ public class SettingsController {
     }
 
     private void bindSettingButtons() {
-        saveSettingsButton.setOnAction(e -> saveSettings());
-        resetSettingsButton.setOnAction(e -> resetSettings());
         resetScoreButton.setOnAction(e -> resetScoreBoard());
     }
 
-    private void saveSettings() {
-        GameSettings savedSettings = settingsStore.save();
-        if (savedSettings == null) {
-            keySettingsStatus.setText("설정을 저장하지 못했습니다.");
+    private void applyVisibleKeyActions(int tabIndex) {
+        boolean showsKeyActions = tabIndex == 1 || tabIndex == 2;
+        keyActionBox.setVisible(showsKeyActions);
+        keyActionBox.setManaged(showsKeyActions);
+        if (tabIndex == 1) {
+            saveSettingsButton.setOnAction(e -> saveSettings(keySettingsStatus));
+            resetSettingsButton.setOnAction(e -> resetSoloKeys());
+        } else if (tabIndex == 2) {
+            saveSettingsButton.setOnAction(e -> saveSettings(localStatus));
+            resetSettingsButton.setOnAction(e -> resetLocalKeys());
+        }
+    }
+
+    public void saveCurrentSettings(Label statusLabel) {
+        saveSettings(statusLabel);
+    }
+
+    public void resetDisplaySettings(Label statusLabel) {
+        if (!confirm("설정 초기화", "화면 설정을 초기값으로 되돌릴까요?")) {
             return;
         }
-        keySettingsStatus.setText("설정이 저장되었습니다.");
+        settingsStore.resetDisplaySettings();
+        resolutionComboBox.setValue(settingsStore.getResolutionPreset());
+        colorBlindModeComboBox.setValue(settingsStore.getColorBlindMode());
+        difficultyComboBox.setValue(settingsStore.getDifficulty());
+        updateResolution();
+        GameSettings savedSettings = settingsStore.save();
+        statusLabel.setText(savedSettings == null
+                ? "기본값은 적용했지만 설정 파일 저장에 실패했습니다."
+                : "화면 설정을 초기값으로 되돌렸습니다.");
+    }
+
+    private void bindLocalKeys() {
+        if (localCommonRows == null) {
+            return;
+        }
+        List<ActionType> commonActions = ActionType.valuesList().stream().filter(ActionType::isCommon).toList();
+        List<ActionType> playerActions = ActionType.valuesList().stream().filter(action -> !action.isCommon()).toList();
+        bindKeyRows(localCommonRows, commonActions, settingsStore.localCommonKeys(), true);
+        List<KeyBindingSettings> players = settingsStore.localPlayerKeys();
+        for (int index = 0; index < localPlayerRows.size(); index++) {
+            bindKeyRows(localPlayerRows.get(index), playerActions, players.get(index), true);
+        }
+    }
+
+    private void bindKeyRows(
+            VBox rows,
+            List<ActionType> actions,
+            KeyBindingSettings bindings,
+            boolean localKeys) {
+        for (int index = 0; index < actions.size(); index++) {
+            ActionType actionType = actions.get(index);
+            Button keyButton = (Button) ((HBox) rows.getChildren().get(index)).getChildren().get(1);
+            localKeyButtons.add(new LocalKeyButton(bindings, actionType, keyButton));
+            keyButton.setText(displayedKeys(bindings, actionType));
+            keyButton.setOnAction(event -> beginKeyCapture(bindings, actionType, keyButton, localStatus, localKeys));
+        }
+    }
+
+    private void saveSettings(Label statusLabel) {
+        GameSettings savedSettings = settingsStore.save();
+        if (savedSettings == null) {
+            statusLabel.setText("설정을 저장하지 못했습니다.");
+            return;
+        }
+        statusLabel.setText("설정이 저장되었습니다.");
     }
 
     public void activate() {
@@ -137,7 +219,7 @@ public class SettingsController {
             scene.removeEventFilter(KeyEvent.KEY_PRESSED, keyCaptureHandler);
             keyCaptureActive = false;
         }
-        actionWaitingForKey = null;
+        clearKeyCapture();
     }
 
     // 선택된 해상도에 맞춰 창 크기 변경
@@ -168,12 +250,32 @@ public class SettingsController {
             Button keyButton = (Button) row.getChildren().get(1);
             keyButtons.put(actionType, keyButton);
             updateKeyButton(actionType);
-            keyButton.setOnAction(event -> {
-                actionWaitingForKey = actionType;
-                keySettingsStatus.setText(actionType.getDisplayName() + "에 지정할 키를 입력하세요.");
-                scene.getRoot().requestFocus();
-            });
+            keyButton.setOnAction(event -> beginKeyCapture(
+                    inputSettingData, actionType, keyButton, keySettingsStatus, false));
         }
+    }
+
+    private void beginKeyCapture(
+            KeyBindingSettings bindings,
+            ActionType actionType,
+            Button keyButton,
+            Label statusLabel,
+            boolean localKeys) {
+        bindingsWaitingForKey = bindings;
+        actionWaitingForKey = actionType;
+        buttonWaitingForKey = keyButton;
+        statusWaitingForKey = statusLabel;
+        waitingLocalKeys = localKeys;
+        statusLabel.setText(actionType.getDisplayName() + "에 지정할 키를 입력하세요.");
+        scene.getRoot().requestFocus();
+    }
+
+    private void clearKeyCapture() {
+        actionWaitingForKey = null;
+        bindingsWaitingForKey = null;
+        buttonWaitingForKey = null;
+        statusWaitingForKey = null;
+        waitingLocalKeys = false;
     }
 
     private void captureKeyBinding(KeyEvent event) { // 다음 키 입력을 새 배정값으로 처리
@@ -215,21 +317,38 @@ public class SettingsController {
     }
 
     private boolean isKeyUsedByAnotherAction(KeyCode newKey) {
+        if (waitingLocalKeys) {
+            if (usesKey(settingsStore.localCommonKeys(), newKey, true)) {
+                return true;
+            }
+            return settingsStore.localPlayerKeys().stream()
+                    .anyMatch(bindings -> usesKey(bindings, newKey, false));
+        }
         return inputSettingData.getAllBindings().entrySet().stream()
                 .anyMatch(binding -> binding.getKey() != actionWaitingForKey
                         && binding.getValue().contains(newKey));
     }
 
+    private boolean usesKey(KeyBindingSettings bindings, KeyCode newKey, boolean commonActions) {
+        return bindings.getAllBindings().entrySet().stream()
+                .filter(binding -> binding.getKey().isCommon() == commonActions)
+                .anyMatch(binding -> binding.getValue().contains(newKey)
+                        && !(bindings == bindingsWaitingForKey && binding.getKey() == actionWaitingForKey));
+    }
+
     private void showKeyAlreadyUsed(KeyCode newKey) {
-        keySettingsStatus.setText(newKey.getName() + " 키는 다른 역할에 이미 배정되어 있습니다.");
+        statusWaitingForKey.setText(newKey.getName() + " 키는 다른 역할에 이미 배정되어 있습니다.");
     }
 
     private void assignWaitingKey(KeyCode newKey) {
         ActionType updatedAction = actionWaitingForKey;
-        inputSettingData.setKeyCode(updatedAction, newKey);
-        updateKeyButton(updatedAction);
-        keySettingsStatus.setText(updatedAction.getDisplayName() + " 키를 " + newKey.getName() + "(으)로 변경했습니다.");
-        actionWaitingForKey = null;
+        bindingsWaitingForKey.setKeyCode(updatedAction, newKey);
+        buttonWaitingForKey.setText(displayedKeys(bindingsWaitingForKey, updatedAction));
+        if (!waitingLocalKeys) {
+            updateKeyButton(updatedAction);
+        }
+        statusWaitingForKey.setText(updatedAction.getDisplayName() + " 키를 " + newKey.getName() + "(으)로 변경했습니다.");
+        clearKeyCapture();
     }
 
     private void moveButtonFocus(int direction, KeyEvent event) {
@@ -240,29 +359,45 @@ public class SettingsController {
     }
 
     private void updateKeyButton(ActionType actionType) { // 버튼에 현재 키 목록 표시
-        List<KeyCode> keyCodes = inputSettingData.getKeyCodes(actionType);
-        String displayedKeys = keyCodes.stream()
-                .map(KeyCode::getName)
-                .collect(Collectors.joining(" / "));
-        keyButtons.get(actionType).setText(displayedKeys);
+        keyButtons.get(actionType).setText(displayedKeys(inputSettingData, actionType));
     }
 
-    private void resetSettings() {
-        if (!confirm("설정 초기화", "모든 설정을 초기값으로 되돌릴까요?")) {
+    private String displayedKeys(KeyBindingSettings bindings, ActionType actionType) {
+        return bindings.getKeyCodes(actionType).stream()
+                .map(KeyCode::getName)
+                .collect(Collectors.joining(" / "));
+    }
+
+    private void refreshLocalKeyButtons() {
+        for (LocalKeyButton localKeyButton : localKeyButtons) {
+            localKeyButton.button().setText(displayedKeys(localKeyButton.bindings(), localKeyButton.actionType()));
+        }
+    }
+
+    private void resetSoloKeys() {
+        if (!confirm("설정 초기화", "이 화면의 키 설정을 초기값으로 되돌릴까요?")) {
             return;
         }
-
-        GameSettings savedSettings = settingsStore.resetToDefaults();
-        resolutionComboBox.setValue(settingsStore.getResolutionPreset());
-        colorBlindModeComboBox.setValue(settingsStore.getColorBlindMode());
-        difficultyComboBox.setValue(settingsStore.getDifficulty());
+        settingsStore.resetSoloKeyBindings();
         for (ActionType actionType : ActionType.values()) {
             updateKeyButton(actionType);
         }
-        updateResolution();
-        showInformation(savedSettings == null
+        GameSettings savedSettings = settingsStore.save();
+        keySettingsStatus.setText(savedSettings == null
                 ? "기본값은 적용했지만 설정 파일 저장에 실패했습니다."
-                : "모든 설정을 초기값으로 되돌렸습니다.");
+                : "키 설정을 초기값으로 되돌렸습니다.");
+    }
+
+    private void resetLocalKeys() {
+        if (!confirm("설정 초기화", "로컬 키 설정을 초기값으로 되돌릴까요?")) {
+            return;
+        }
+        settingsStore.resetLocalKeyBindings();
+        refreshLocalKeyButtons();
+        GameSettings savedSettings = settingsStore.save();
+        localStatus.setText(savedSettings == null
+                ? "기본값은 적용했지만 설정 파일 저장에 실패했습니다."
+                : "로컬 키 설정을 초기값으로 되돌렸습니다.");
     }
 
     private void resetScoreBoard() {
@@ -290,6 +425,9 @@ public class SettingsController {
         information.initOwner(stage);
         information.setHeaderText(null);
         information.showAndWait();
+    }
+
+    private record LocalKeyButton(KeyBindingSettings bindings, ActionType actionType, Button button) {
     }
 
 }

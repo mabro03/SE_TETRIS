@@ -16,7 +16,10 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import org.junit.jupiter.api.BeforeAll;
@@ -87,10 +90,10 @@ class AppControllerTest {
 
             controller.ShowSettings();
             BorderPane settingsRoot = (BorderPane) scene.getRoot();
-            Button back = (Button) ((VBox) settingsRoot.getBottom()).getChildren().get(1);
+            Button back = (Button) ((HBox) settingsRoot.getBottom()).getChildren().get(0);
 
             assertEquals("Tetris - 설정", stage.getTitle());
-            assertEquals("설정", ((Label) settingsRoot.getTop()).getText());
+            assertEquals(null, settingsRoot.getTop());
 
             back.fire();
 
@@ -98,6 +101,58 @@ class AppControllerTest {
             assertEquals("TETRIS", ((Label) ((BorderPane) scene.getRoot()).getTop()).getText());
             assertFalse(Files.exists(settingsFile));
         });
+    }
+
+    @Test
+    void selectsGameModeWithKeysAndMouse(@TempDir Path tempDir) throws Exception {
+        Path settingsFile = tempDir.resolve("settings.properties");
+        runOnFxThread(() -> {
+            Stage stage = new Stage();
+            Scene scene = new Scene(new BorderPane(), 960, 540);
+            stage.setScene(scene);
+            AppController controller = new AppController(stage, scene, new SettingsStore(settingsFile));
+
+            controller.ShowSoloGame();
+            VBox soloRoot = (VBox) scene.getRoot();
+            Button normalMode = (Button) soloRoot.getChildren().get(1);
+            Button itemMode = (Button) soloRoot.getChildren().get(2);
+            Button startMenu = (Button) soloRoot.getChildren().get(3);
+
+            assertEquals("Tetris - 모드 선택", stage.getTitle());
+            assertEquals("일반 모드", normalMode.getText());
+            assertEquals("아이템 모드", itemMode.getText());
+            assertEquals("시작화면", startMenu.getText());
+            assertTrue(normalMode.getStyle().contains("#4da3ff"));
+            assertTrue(itemMode.getStyle().contains("#dcdcdc"));
+
+            fireKey(soloRoot, KeyCode.DOWN);
+            assertTrue(itemMode.getStyle().contains("#4da3ff"));
+            assertTrue(normalMode.getStyle().contains("#dcdcdc"));
+
+            fireKey(soloRoot, KeyCode.UP);
+            fireKey(soloRoot, KeyCode.UP);
+            assertTrue(normalMode.getStyle().contains("#4da3ff"));
+
+            startMenu.getOnMouseEntered().handle(null);
+            assertTrue(startMenu.getStyle().contains("#4da3ff"));
+            assertTrue(normalMode.getStyle().contains("#dcdcdc"));
+
+            fireKey(soloRoot, KeyCode.ENTER);
+            assertEquals("Tetris", stage.getTitle());
+            assertFalse(Files.exists(settingsFile));
+
+            controller.ShowLocalMultiGame();
+            VBox localRoot = (VBox) scene.getRoot();
+            Button timeLimit = (Button) localRoot.getChildren().get(3);
+            assertEquals("시간제한 모드", timeLimit.getText());
+            assertTrue(((Button) localRoot.getChildren().get(1)).getStyle().contains("#4da3ff"));
+            assertTrue(timeLimit.getStyle().contains("#dcdcdc"));
+        });
+    }
+
+    private static void fireKey(Parent root, KeyCode keyCode) {
+        root.fireEvent(new KeyEvent(
+                KeyEvent.KEY_PRESSED, "", "", keyCode, false, false, false, false));
     }
 
     private static void runOnFxThread(Runnable action) throws Exception {

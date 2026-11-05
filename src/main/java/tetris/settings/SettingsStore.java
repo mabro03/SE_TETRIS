@@ -5,8 +5,11 @@ import java.io.InputStream; // 설정 파일 입력 스트림
 import java.io.OutputStream; // 설정 파일 출력 스트림
 import java.nio.file.Files; // 파일 생성과 읽기/쓰기
 import java.nio.file.Path; // 설정 파일 경로
+import java.util.ArrayList;
 import java.util.Arrays; // 저장된 키 문자열 분리
+import java.util.EnumMap;
 import java.util.List; // 키 목록
+import java.util.Map;
 import java.util.Objects;
 import java.util.Properties; // key=value 형식 저장소
 import java.util.stream.Collectors; // 키 목록을 문자열로 변환
@@ -16,6 +19,7 @@ import tetris.settings.KeyBindingSettings.ActionType; // 역할 목록
 import tetris.settings.GameSettings.ColorBlindMode;
 import tetris.settings.GameSettings.Difficulty;
 import tetris.settings.GameSettings.GameMode;
+import tetris.settings.GameSettings.PlayMode;
 
 // 사용자 설정을 홈 디렉터리의 properties 파일에 저장하고 불러오는 클래스
 public final class SettingsStore {
@@ -35,6 +39,8 @@ public final class SettingsStore {
 
     private final Path settingsFile;
     private final KeyBindingSettings inputSettingData = new KeyBindingSettings();
+    private final KeyBindingSettings localCommonKeys = new KeyBindingSettings();
+    private final List<KeyBindingSettings> localPlayerKeys = createDefaultLocalPlayers();
     private ColorBlindMode colorBlindMode = ColorBlindMode.NORMAL;
     private String resolutionPreset = resolutionPresets[0];
     private Difficulty currentDifficulty = Difficulty.NORMAL;
@@ -53,6 +59,21 @@ public final class SettingsStore {
     // 현재 키 설정 객체 반환. 설정 화면과 저장소가 같은 객체를 사용한다.
     public KeyBindingSettings getInputSettingData() {
         return inputSettingData;
+    }
+
+    public KeyBindingSettings localCommonKeys() {
+        return localCommonKeys;
+    }
+
+    public List<KeyBindingSettings> localPlayerKeys() {
+        return List.copyOf(localPlayerKeys);
+    }
+
+    private static List<KeyBindingSettings> createDefaultLocalPlayers() {
+        List<KeyBindingSettings> players = new ArrayList<>();
+        players.add(KeyBindingSettings.player1LocalDefaults());
+        players.add(KeyBindingSettings.player2LocalDefaults());
+        return players;
     }
 
     // 캡슐화를 통해 수정은 불가하되 읽기만 가능
@@ -153,6 +174,7 @@ public final class SettingsStore {
         applyDifficulty(properties);
         applyGameMode(properties);
         applyKeyBindings(properties);
+        applyLocalKeyBindings(properties);
     }
 
     private void applyResolution(Properties properties) {
@@ -205,6 +227,32 @@ public final class SettingsStore {
         inputSettingData.setKeyCodes(actionType, parseSavedKeys(savedKeys));
     }
 
+    private void applyLocalKeyBindings(Properties properties) {
+        for (ActionType actionType : ActionType.values()) {
+            if (actionType.isCommon()) {
+                applyStoredKeys(localCommonKeys, actionType,
+                        properties.getProperty("local.common." + actionType.name()));
+            }
+        }
+        for (int index = 0; index < localPlayerKeys.size(); index++) {
+            KeyBindingSettings playerKeys = localPlayerKeys.get(index);
+            for (ActionType actionType : ActionType.values()) {
+                if (actionType.isCommon()) {
+                    continue;
+                }
+                applyStoredKeys(playerKeys, actionType, properties.getProperty(
+                        "local.player." + (index + 1) + "." + actionType.name()));
+            }
+        }
+    }
+
+    private void applyStoredKeys(KeyBindingSettings bindings, ActionType actionType, String savedKeys) {
+        if (savedKeys == null || savedKeys.isBlank()) {
+            return;
+        }
+        bindings.setKeyCodes(actionType, parseSavedKeys(savedKeys));
+    }
+
     private List<KeyCode> parseSavedKeys(String savedKeys) {
         return Arrays.stream(savedKeys.split(","))
                 .map(String::trim)
@@ -230,6 +278,7 @@ public final class SettingsStore {
         properties.setProperty("difficulty", getDifficulty().name());
         properties.setProperty("gameMode", getGameMode().name());
         addKeyBindings(properties);
+        addLocalKeyBindings(properties);
         return properties;
     }
 
@@ -237,6 +286,24 @@ public final class SettingsStore {
         inputSettingData.getAllBindings().forEach((actionType, keyCodes) -> {
             properties.setProperty("key." + actionType.name(), formatKeyCodes(keyCodes));
         });
+    }
+
+    private void addLocalKeyBindings(Properties properties) {
+        localCommonKeys.getAllBindings().forEach((actionType, keyCodes) -> {
+            if (actionType.isCommon()) {
+                properties.setProperty("local.common." + actionType.name(), formatKeyCodes(keyCodes));
+            }
+        });
+        for (int index = 0; index < localPlayerKeys.size(); index++) {
+            int playerNumber = index + 1;
+            localPlayerKeys.get(index).getAllBindings().forEach((actionType, keyCodes) -> {
+                if (!actionType.isCommon()) {
+                    properties.setProperty(
+                            "local.player." + playerNumber + "." + actionType.name(),
+                            formatKeyCodes(keyCodes));
+                }
+            });
+        }
     }
 
     private String formatKeyCodes(List<KeyCode> keyCodes) {
@@ -270,7 +337,50 @@ public final class SettingsStore {
         setDifficulty(Difficulty.NORMAL);
         setGameMode(GameMode.NORMAL);
         inputSettingData.resetToDefaults();
+        resetLocalKeyBindings();
         return save();
+    }
+
+    public void resetDisplaySettings() {
+        setResolutionPreset(resolutionPresets[0]);
+        setColorBlindMode(ColorBlindMode.NORMAL);
+        setDifficulty(Difficulty.NORMAL);
+    }
+
+    public void resetSoloKeyBindings() {
+        inputSettingData.resetToDefaults();
+    }
+
+    public void resetLocalKeyBindings() {
+        localCommonKeys.resetToDefaults();
+        localPlayerKeys.get(0).copyFrom(KeyBindingSettings.player1LocalDefaults());
+        localPlayerKeys.get(1).copyFrom(KeyBindingSettings.player2LocalDefaults());
+    }
+
+    // 솔로와 온라인은 현재 설정 스냅샷을, 로컬은 추가 설정의 키를 담은 스냅샷을 만든다.
+    public GameSettings gameSettingsFor(PlayMode playMode) {
+        GameSettings currentSettings = getGameSettings();
+        if (playMode != PlayMode.LOCAL) {
+            return currentSettings;
+        }
+        return currentSettings.withPlayerKeyBindings(localPlayerBindingMaps());
+    }
+
+    private List<Map<ActionType, List<KeyCode>>> localPlayerBindingMaps() {
+        List<Map<ActionType, List<KeyCode>>> maps = new ArrayList<>();
+        for (KeyBindingSettings playerKeys : localPlayerKeys) {
+            maps.add(combinedLocalBindings(playerKeys));
+        }
+        return maps;
+    }
+
+    private Map<ActionType, List<KeyCode>> combinedLocalBindings(KeyBindingSettings playerKeys) {
+        Map<ActionType, List<KeyCode>> combined = new EnumMap<>(ActionType.class);
+        for (ActionType actionType : ActionType.values()) {
+            KeyBindingSettings source = actionType.isCommon() ? localCommonKeys : playerKeys;
+            combined.put(actionType, source.getKeyCodes(actionType));
+        }
+        return combined;
     }
 
     // 게임 시작 화면에서 마지막 저장 설정 객체를 조회

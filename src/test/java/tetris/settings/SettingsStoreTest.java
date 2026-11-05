@@ -17,6 +17,7 @@ import org.junit.jupiter.api.io.TempDir;
 import tetris.settings.GameSettings.ColorBlindMode;
 import tetris.settings.GameSettings.Difficulty;
 import tetris.settings.GameSettings.GameMode;
+import tetris.settings.GameSettings.PlayMode;
 import tetris.settings.KeyBindingSettings.ActionType;
 
 class SettingsStoreTest {
@@ -149,5 +150,33 @@ class SettingsStoreTest {
         assertNotNull(fallback);
         assertEquals(GameMode.ITEM, fallback.gameMode());
         assertEquals(GameMode.ITEM, store.getGameMode());
+    }
+
+    @Test
+    void localModeUsesAdditionalPlayerKeys(@TempDir Path tempDir) {
+        Path file = tempDir.resolve("settings.properties");
+        SettingsStore store = new SettingsStore(file);
+        store.getInputSettingData().setKeyCode(ActionType.MOVE_LEFT, KeyCode.G);
+        store.localCommonKeys().setKeyCode(ActionType.PAUSE, KeyCode.P);
+        store.localPlayerKeys().get(1).setKeyCode(ActionType.MOVE_LEFT, KeyCode.J);
+        store.save();
+
+        GameSettings solo = store.gameSettingsFor(PlayMode.SOLO);
+        GameSettings online = store.gameSettingsFor(PlayMode.ONLINE);
+        GameSettings local = store.gameSettingsFor(PlayMode.LOCAL);
+
+        assertEquals(KeyCode.G, solo.keyBindings().get(ActionType.MOVE_LEFT).get(0));
+        assertEquals(KeyCode.G, online.keyBindings().get(ActionType.MOVE_LEFT).get(0));
+        assertEquals(1, solo.playerKeyBindings().size());
+        assertEquals(KeyCode.LEFT, local.playerKeyBindings().get(0).get(ActionType.MOVE_LEFT).get(0));
+        assertEquals(KeyCode.J, local.playerKeyBindings().get(1).get(ActionType.MOVE_LEFT).get(0));
+        assertEquals(KeyCode.P, local.playerKeyBindings().get(0).get(ActionType.PAUSE).get(0));
+        assertEquals(KeyCode.P, local.playerKeyBindings().get(1).get(ActionType.PAUSE).get(0));
+        assertEquals(solo.resolutionPreset(), local.resolutionPreset());
+
+        SettingsStore loaded = new SettingsStore(file);
+        loaded.load();
+        assertEquals(KeyCode.J, loaded.localPlayerKeys().get(1).getKeyCode(ActionType.MOVE_LEFT));
+        assertEquals(KeyCode.P, loaded.localCommonKeys().getKeyCode(ActionType.PAUSE));
     }
 }

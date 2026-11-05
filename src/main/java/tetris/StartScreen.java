@@ -44,14 +44,15 @@ public class StartScreen {
     }
 
     public void makeStartScreen(
-            Runnable onGame,
-            Runnable onItemGame,
+            Runnable soloPlay,
+            Runnable localPlay,
+            Runnable onlinePlay,
             Runnable onScoreBoard,
             Runnable onSettings) {
         selectedIndex = 0;
         Label title = createTitleLabel();
         buttons = createMenuButtons();
-        bindMenuActions(onGame, onItemGame, onScoreBoard, onSettings);
+        bindMenuActions(soloPlay, localPlay, onlinePlay, onScoreBoard, onSettings);
         bindMouseSelection();
         root = createStartRoot(title, createButtonBox(), createKeyHint());
         bindKeySelection();
@@ -67,11 +68,12 @@ public class StartScreen {
 
     private Button[] createMenuButtons() {
         Button[] menuButtons = {
-            new Button("일반모드 시작"),
-            new Button("아이템 모드 시작"),
-            new Button("스코어 보드"),
-            new Button("설정"),
-            new Button("게임 종료")
+            new Button("Solo play"),
+            new Button("Local multiplay"),
+            new Button("Online multiplay"),
+            new Button("Scoreboard"),
+            new Button("Settings"),
+            new Button("Exit")
         };
         for (Button button : menuButtons) {
             button.setPrefSize(180, 50);
@@ -79,16 +81,18 @@ public class StartScreen {
         return menuButtons;
     }
 
-    private void bindMenuActions(
-            Runnable onGame,
-            Runnable onItemGame,
+    private void bindMenuActions(//버튼 선택 시 동작 연결
+            Runnable soloPlay,
+            Runnable localPlay,
+            Runnable onlinePlay,
             Runnable onScoreBoard,
             Runnable onSettings) {
-        buttons[0].setOnAction(e -> onGame.run());
-        buttons[1].setOnAction(e -> onItemGame.run());
-        buttons[2].setOnAction(e -> onScoreBoard.run());
-        buttons[3].setOnAction(e -> onSettings.run());
-        buttons[4].setOnAction(e -> System.exit(0));
+        buttons[0].setOnAction(e -> soloPlay.run());
+        buttons[1].setOnAction(e -> localPlay.run());
+        buttons[2].setOnAction(e -> onlinePlay.run());
+        buttons[3].setOnAction(e -> onScoreBoard.run());
+        buttons[4].setOnAction(e -> onSettings.run());
+        buttons[5].setOnAction(e -> System.exit(0));
     }
 
     private void bindMouseSelection() {
@@ -102,7 +106,7 @@ public class StartScreen {
         }
     }
 
-    private VBox createButtonBox() {
+    private VBox createButtonBox() {//버튼을 세로로 배치하는 VBox 생성
         VBox buttonBox = new VBox(20);
         buttonBox.getChildren().addAll(buttons);
         buttonBox.setAlignment(Pos.CENTER);
@@ -115,6 +119,7 @@ public class StartScreen {
         return keyHint;
     }
 
+    //만든 화면 요소를 배치
     private BorderPane createStartRoot(Label title, VBox buttonBox, Label keyHint) {
         BorderPane screen = new BorderPane();
         screen.setStyle("-fx-background-color: black;");

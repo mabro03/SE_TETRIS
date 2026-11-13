@@ -25,6 +25,7 @@ import javafx.stage.Stage;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import tetris.onlinemulti.OnlineMultiController;
 import tetris.settings.SettingsStore;
 
 class AppControllerTest {
@@ -73,7 +74,10 @@ class AppControllerTest {
             Stage stage = new Stage();
             Scene scene = new Scene(new BorderPane(), 960, 540);
             stage.setScene(scene);
-            AppController controller = new AppController(stage, scene, new SettingsStore(settingsFile));
+            SettingsStore settingsStore = new SettingsStore(settingsFile);
+            OnlineMultiController onlineController = new OnlineMultiController(stage, scene, settingsStore);
+            AppController controller = new AppController(
+                    stage, scene, settingsStore, onlineController::show);
 
             controller.ShowStartScreen();
             Parent startRoot = scene.getRoot();

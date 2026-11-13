@@ -16,8 +16,14 @@ import javafx.scene.layout.StackPane;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+
+import tetris.onlinemulti.OnlineConnectScreen;
+import tetris.onlinemulti.OnlineLobbyClient;
+import tetris.onlinemulti.OnlineLobbyScreen;
+import tetris.onlinemulti.OnlineLobbyServer;
+import tetris.onlinemulti.RecentHostStore;
+import tetris.onlinemulti.OnlineLobbyScreen.Role;
 import tetris.settings.GameSettings.GameMode;
-import tetris.versusmode.OnlineLobbyScreen.Role;
 
 class OnlineLobbyScreenTest {
     @BeforeAll

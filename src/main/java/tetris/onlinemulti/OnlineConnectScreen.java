@@ -1,4 +1,4 @@
-package tetris.versusmode;
+package tetris.onlinemulti;
 
 import javafx.geometry.Pos;
 import javafx.scene.Parent;

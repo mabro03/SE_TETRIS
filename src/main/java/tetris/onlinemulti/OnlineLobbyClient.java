@@ -1,4 +1,4 @@
-package tetris.versusmode;
+package tetris.onlinemulti;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -51,6 +51,7 @@ public final class OnlineLobbyClient implements AutoCloseable {
 
     public void sendReady() {
         sendLine("READY");
+        lobby.addAnnouncementMessage("Client가 준비를 완료했습니다.");
     }
 
     private void sendLine(String line) {
@@ -82,7 +83,10 @@ public final class OnlineLobbyClient implements AutoCloseable {
             while ((line = reader.readLine()) != null) {
                 if (line.startsWith("MODE ")) {
                     GameMode mode = GameMode.valueOf(line.substring("MODE ".length()).trim());
-                    Platform.runLater(() -> lobby.showMode(mode));
+                    Platform.runLater(() -> {
+                        lobby.showMode(mode);
+                        lobby.addAnnouncementMessage("방장이 게임 모드를 " + mode + "로 설정했습니다.");
+                    });
                 } else if (line.startsWith("CHAT ")) {
                     String message = line.substring("CHAT ".length());
                     Platform.runLater(() -> lobby.addIncomingMessage(message));

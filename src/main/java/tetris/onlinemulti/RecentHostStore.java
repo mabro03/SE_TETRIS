@@ -1,4 +1,4 @@
-package tetris.versusmode;
+package tetris.onlinemulti;
 
 import java.io.IOException;
 import java.nio.file.Files;

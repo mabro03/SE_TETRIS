@@ -1,4 +1,4 @@
-package tetris.versusmode;
+package tetris.onlinemulti;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -112,7 +112,7 @@ public final class OnlineLobbyServer implements AutoCloseable {
         }
     }
 
-    private static void closeQuietly(AutoCloseable closeable) {
+    private void closeQuietly(AutoCloseable closeable) {
         if (closeable == null) {
             return;
         }

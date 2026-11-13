@@ -1,7 +1,7 @@
 package tetris;
 
-import java.io.IOException;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 import javafx.application.Platform;
 import javafx.geometry.Pos;
@@ -26,12 +26,6 @@ import tetris.scoreboard.ScoreBoardScreen;
 import tetris.settings.SettingsScreen;
 import tetris.versusmode.VersusManager;
 import tetris.versusmode.VersusManager.MatchResult;
-import tetris.versusmode.OnlineConnectScreen;
-import tetris.versusmode.OnlineLobbyClient;
-import tetris.versusmode.OnlineLobbyScreen;
-import tetris.versusmode.OnlineLobbyServer;
-import tetris.versusmode.OnlineRoleScreen;
-import tetris.versusmode.RecentHostStore;
 
 /**
  * Scene과 Stage를 가진 시작 화면 루트를 받아, 하나의 창에서 화면을 전환한다.
@@ -40,23 +34,27 @@ public class AppController {
     private final Stage stage;
     private final Scene scene;
     private final SettingsStore settingsStore;
+    private final Consumer<Runnable> onOnlineMultiRequested;
     private ScoreBoardScreen scoreBoardScreen;
     private GameController gameController;
     private VersusManager versusManager;
     private PauseScene pauseScene;
     private GameOverRoot gameOverRoot;
-    private OnlineLobbyServer onlineLobbyServer;
-    private OnlineLobbyClient onlineLobbyClient;
-    private OnlineConnectScreen onlineConnectScreen;
 
     public AppController(Stage stage, Scene scene, SettingsStore settingsStore) {
+        this(stage, scene, settingsStore, ignored -> {});
+    }
+
+    public AppController(Stage stage, Scene scene, SettingsStore settingsStore,
+            Consumer<Runnable> onOnlineMultiRequested) {
         this.stage = Objects.requireNonNull(stage, "stage cannot be null");
         this.scene = Objects.requireNonNull(scene, "scene cannot be null");
         this.settingsStore = Objects.requireNonNull(settingsStore, "settingsStore cannot be null");
+        this.onOnlineMultiRequested = Objects.requireNonNull(
+                onOnlineMultiRequested, "onOnlineMultiRequested cannot be null");
     }
 
     public void ShowStartScreen() {
-        closeOnlineLobby();
         StartScreen startScreen = new StartScreen(stage, scene);
         startScreen.makeStartScreen(
             this::ShowSoloGame, this::ShowLocalMultiGame, this::ShowOnlineMultiGame, this::ShowScoreBoard, this::ShowSettings);
@@ -75,94 +73,7 @@ public class AppController {
     }
 
     public void ShowOnlineMultiGame() {
-        showOnlineRoleScreen(null);
-    }
-
-    private void showOnlineRoleScreen(String errorMessage) {
-        closeOnlineLobby();
-        OnlineRoleScreen roleScreen = new OnlineRoleScreen(
-                this::showOnlineServerLobby, this::showOnlineConnectScreen, this::ShowStartScreen);
-        roleScreen.showError(errorMessage);
-        scene.setOnKeyPressed(null);
-        stage.setTitle("Tetris - 온라인");
-        scene.setRoot(roleScreen.getRoot());
-        roleScreen.getRoot().requestFocus();
-    }
-
-    private void showOnlineServerLobby() {
-        closeOnlineLobby();
-        OnlineLobbyScreen lobby = new OnlineLobbyScreen(
-                OnlineLobbyScreen.Role.SERVER, settingsStore.getGameMode(), () -> showOnlineRoleScreen(null));
-        try {
-            onlineLobbyServer = new OnlineLobbyServer(lobby);
-            onlineLobbyServer.start();
-        } catch (IOException exception) {
-            showOnlineRoleScreen("서버 포트를 열 수 없습니다.");
-            return;
-        }
-        showLobby(lobby);
-    }
-
-    private void showOnlineConnectScreen() {
-        closeOnlineLobby();
-        onlineConnectScreen = new OnlineConnectScreen(
-                new RecentHostStore(), this::connectOnlineClient, () -> showOnlineRoleScreen(null));
-        scene.setOnKeyPressed(null);
-        stage.setTitle("Tetris - 온라인 접속");
-        scene.setRoot(onlineConnectScreen.getRoot());
-        onlineConnectScreen.getRoot().requestFocus();
-    }
-
-    private void connectOnlineClient(String host) {
-        OnlineConnectScreen connectScreen = onlineConnectScreen;
-        OnlineLobbyScreen lobby = new OnlineLobbyScreen(
-                OnlineLobbyScreen.Role.CLIENT, settingsStore.getGameMode(), () -> showOnlineRoleScreen(null));
-        OnlineLobbyClient client;
-        try {
-            client = new OnlineLobbyClient(host, lobby);
-        } catch (RuntimeException exception) {
-            connectScreen.showError("ip를 입력해주세요");
-            return;
-        }
-        onlineLobbyClient = client;
-        lobby.setOnReady(client::sendReady);
-        Thread connectThread = new Thread(() -> {
-            try {
-                client.connect();
-                new RecentHostStore().save(host);
-                Platform.runLater(() -> {
-                    if (onlineLobbyClient == client) {
-                        showLobby(lobby);
-                    }
-                });
-            } catch (IOException exception) {
-                Platform.runLater(() -> {
-                    if (onlineConnectScreen == connectScreen) {
-                        connectScreen.showError("접속에 실패했습니다.");
-                    }
-                });
-            }
-        }, "online-lobby-connect");
-        connectThread.setDaemon(true);
-        connectThread.start();
-    }
-
-    private void showLobby(OnlineLobbyScreen lobby) {
-        scene.setOnKeyPressed(null);
-        stage.setTitle("Tetris - 대전 대기");
-        scene.setRoot(lobby.getRoot());
-        lobby.getRoot().requestFocus();
-    }
-
-    private void closeOnlineLobby() {
-        if (onlineLobbyServer != null) {
-            onlineLobbyServer.close();
-            onlineLobbyServer = null;
-        }
-        if (onlineLobbyClient != null) {
-            onlineLobbyClient.close();
-            onlineLobbyClient = null;
-        }
+        onOnlineMultiRequested.accept(this::ShowStartScreen);
     }
 
     private void startGame(PlayMode playMode, GameSettings gameSettings) {

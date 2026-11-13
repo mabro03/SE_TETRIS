@@ -1,4 +1,4 @@
-package tetris.onlinemulti;
+package tetris.versusmode;
 
 import java.net.DatagramSocket;
 import java.net.Inet4Address;
@@ -126,22 +126,13 @@ public final class OnlineLobbyScreen {
     }
 
     public void addIncomingMessage(String message) {
-        addMessage(message, "-fx-text-fill: white; -fx-font-size: 14px;");
-    }
-
-    //메시지를 채팅창에 공지로 띄우기
-    public void addAnnouncementMessage(String message) {
-        addMessage(message, "-fx-text-fill: yellow; -fx-font-size: 14px; -fx-font-weight: bold;");
-    }
-
-    private void addMessage(String message, String style) {
         if (message == null || message.isBlank()) {
             return;
         }
         messages.add(message);
         Label line = new Label(message);
         line.setWrapText(true);
-        line.setStyle(style);
+        line.setStyle("-fx-text-fill: white; -fx-font-size: 14px;");
         messageBox.getChildren().add(line);
     }
 
@@ -247,7 +238,7 @@ public final class OnlineLobbyScreen {
             onChat.accept(line);
         }
     }
-    
+
     private Parent createActionPane() {
         configureActionButtons();
         VBox actions = new VBox(8, modeCombo, actionButton);

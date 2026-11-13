@@ -8,7 +8,6 @@ import javafx.stage.Stage; // 실제 앱 창
 import tetris.settings.GameSettings; // 저장된 화면 크기
 import tetris.settings.SettingsStore; // 저장된 사용자 설정을 불러오는 클래스
 import tetris.scoreboard.ScoreStorage; // 점수 저장 파일을 준비하는 클래스
-import tetris.onlinemulti.OnlineMultiController;
 
 
 // 프로그램 실행을 시작하는 진입점 클래스
@@ -30,11 +29,7 @@ public class Main extends Application {
         stage.setTitle("Tetris");
         stage.setResizable(false);
         stage.setScene(scene);
-        OnlineMultiController onlineMultiController =
-                new OnlineMultiController(stage, scene, settingsStore);
-        AppController appController = new AppController(
-                stage, scene, settingsStore, onlineMultiController::show);
-        appController.ShowStartScreen();
+        new AppController(stage, scene, settingsStore).ShowStartScreen();
         stage.show();
     }
    

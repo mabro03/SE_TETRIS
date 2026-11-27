@@ -69,7 +69,35 @@ public class AppController {
     }
 
     public void ShowLocalMultiGame() {
-        gameModeSelectScreen(PlayMode.LOCAL);
+        showLocalOpponentSelectScreen();
+    }
+
+    // 로컬 대전: 사람 vs 사람 / 사람 vs 컴퓨터 선택 후 모드 선택으로 진행한다.
+    private void showLocalOpponentSelectScreen() {
+        Label title = new Label("대전 상대");
+        title.setStyle("-fx-font-size: 40px; -fx-font-weight: bold; -fx-text-fill: white;");
+
+        Button humanButton = new Button("사람 vs 사람");
+        Button computerButton = new Button("사람 vs 컴퓨터");
+        Button backButton = new Button("시작화면");
+        Button[] buttons = {humanButton, computerButton, backButton};
+        for (Button button : buttons) {
+            button.setPrefSize(220, 50);
+        }
+
+        humanButton.setOnAction(event -> gameModeSelectScreen(PlayMode.LOCAL, false));
+        computerButton.setOnAction(event -> gameModeSelectScreen(PlayMode.LOCAL, true));
+        backButton.setOnAction(event -> ShowStartScreen());
+
+        VBox root = new VBox(20, title, humanButton, computerButton, backButton);
+        root.setAlignment(Pos.CENTER);
+        root.setStyle("-fx-background-color: black;");
+        bindModeSelection(root, buttons);
+
+        scene.setOnKeyPressed(null);
+        stage.setTitle("Tetris - 대전 상대");
+        scene.setRoot(root);
+        root.requestFocus();
     }
 
     public void ShowOnlineMultiGame() {
@@ -88,6 +116,10 @@ public class AppController {
     }
 
     private void StartGame(PlayMode playMode, GameSettings gameSettings) {
+        StartGame(playMode, gameSettings, false);
+    }
+
+    private void StartGame(PlayMode playMode, GameSettings gameSettings, boolean computerOpponent) {
         scene.setOnKeyPressed(null);// 게임 시작 시 키 이벤트 초기화
         if(playMode == PlayMode.SOLO) {
             gameController = new GameController(
@@ -97,7 +129,8 @@ public class AppController {
             gameController.GameStart();
         }
         else if(playMode == PlayMode.LOCAL) {
-            versusManager = new VersusManager(gameSettings, this::ShowPauseScreen, this::ShowMultiEndGame);
+            versusManager = new VersusManager(
+                    gameSettings, this::ShowPauseScreen, this::ShowMultiEndGame, computerOpponent);
             scene.setRoot(versusManager.GetRoot());
             versusManager.GetRoot().requestFocus();
             versusManager.GameStart();
@@ -171,6 +204,10 @@ public class AppController {
 
     // 게임 모드 선택 화면을 표시하고, 선택된 모드에 따라 게임 설정을 저장
     public void gameModeSelectScreen(PlayMode playMode) {
+        gameModeSelectScreen(playMode, false);
+    }
+
+    public void gameModeSelectScreen(PlayMode playMode, boolean computerOpponent) {
         Button[] modebuttons;
 
         if(playMode == PlayMode.SOLO) {
@@ -185,7 +222,7 @@ public class AppController {
             modebuttons[2] = new Button("시간제한 모드");
         }
         makeModeSelectionScreen(modebuttons);
-        storeModeSelection(playMode, modebuttons);
+        storeModeSelection(playMode, modebuttons, computerOpponent);
     }
 
     // 게임 모드 선택 화면을 생성
@@ -263,6 +300,10 @@ public class AppController {
 
     // 버튼 선택 시 모드를 저장하고 그 모드로 게임을 시작한다.
     private void storeModeSelection(PlayMode playMode, Button[] modebuttons) {
+        storeModeSelection(playMode, modebuttons, false);
+    }
+
+    private void storeModeSelection(PlayMode playMode, Button[] modebuttons, boolean computerOpponent) {
         GameMode[] availableModes = {
             GameMode.NORMAL,
             GameMode.ITEM,
@@ -272,7 +313,7 @@ public class AppController {
             GameMode selectedMode = availableModes[i];
             modebuttons[i].setOnAction(event -> {
                 settingsStore.saveGameMode(selectedMode);
-                StartGame(playMode, settingsStore.gameSettingsFor(playMode));
+                StartGame(playMode, settingsStore.gameSettingsFor(playMode), computerOpponent);
             });
         }
     }

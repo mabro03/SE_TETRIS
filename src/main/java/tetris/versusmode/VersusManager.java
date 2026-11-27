@@ -12,6 +12,7 @@ import tetris.gamescene.board.BoardElement;
 import tetris.gamescene.GameController;
 import tetris.settings.GameSettings;
 import tetris.settings.GameSettings.GameMode;
+import tetris.versusmode.computermode.ComputerPlayer;
 
 public class VersusManager {
     public enum Player { PLAYER1, PLAYER2 }
@@ -24,6 +25,8 @@ public class VersusManager {
     private final VersusInput input;
     private final VersusRenderer renderer;
     private final VersusTimer timer;
+    private final ComputerPlayer computerPlayer;
+    private final boolean computerOpponent;
     private final Runnable onPauseRequested;
     private final Consumer<VersusResult> onMatchEnded;
     private long previousFrameTime;
@@ -41,6 +44,9 @@ public class VersusManager {
             double deltaTimeMs = (now - previousFrameTime) / 1_000_000.0;
             previousFrameTime = now;
             input.Update(deltaTimeMs);
+            if (computerPlayer != null) {
+                computerPlayer.Update(deltaTimeMs);
+            }
 
             if (state == MatchState.RUNNING) { // 매 프레임마다 각 플레이어의 삭제한 줄을 읽어와 상대방의 versusBoard로 던져줌
                 TransferAttack(Player.PLAYER1);
@@ -58,21 +64,35 @@ public class VersusManager {
 
 
     public VersusManager(GameSettings settings, Runnable onPauseRequested, Consumer<VersusResult> onMatchEnded) {
-        this(settings, onPauseRequested, onMatchEnded, 0);
+        this(settings, onPauseRequested, onMatchEnded, 0, false);
+    }
+
+    public VersusManager(GameSettings settings, Runnable onPauseRequested,
+            Consumer<VersusResult> onMatchEnded, boolean computerOpponent) {
+        this(settings, onPauseRequested, onMatchEnded, 0, computerOpponent);
     }
 
     public VersusManager(GameSettings settings, Runnable onPauseRequested,
             Consumer<VersusResult> onMatchEnded, int initialClearedLineCount) {
+        this(settings, onPauseRequested, onMatchEnded, initialClearedLineCount, false);
+    }
+
+    public VersusManager(GameSettings settings, Runnable onPauseRequested,
+            Consumer<VersusResult> onMatchEnded, int initialClearedLineCount, boolean computerOpponent) {
         Objects.requireNonNull(settings);
         this.onPauseRequested = Objects.requireNonNull(onPauseRequested);
         this.onMatchEnded = Objects.requireNonNull(onMatchEnded);
+        this.computerOpponent = computerOpponent;
         player1 = new GameController(
                 ignored -> HandlePlayerDefeat(Player.PLAYER1), settings, initialClearedLineCount);
         player2 = new GameController(
                 ignored -> HandlePlayerDefeat(Player.PLAYER2), settings, initialClearedLineCount);
         input = new VersusInput(this::PauseGame, player1.playerInput, player2.playerInput,
-                settings.playerKeyBindings());
+                settings.playerKeyBindings(), computerOpponent ? 1 : -1);
         input.SetInputEnabled(false);
+        computerPlayer = computerOpponent
+                ? new ComputerPlayer(player2::GetRenderState, player2.playerInput)
+                : null;
         renderer = new VersusRenderer(player1.GetRoot(), player2.GetRoot(), settings);
         if(settings.gameMode() == GameMode.TIMELIMIT){
             timer = new VersusTimer(this::HandleTimeExpired);
@@ -93,6 +113,10 @@ public class VersusManager {
         player1.GameStart();
         player2.GameStart();
         input.SetInputEnabled(true);
+        if (computerPlayer != null) {
+            computerPlayer.SetEnabled(true);
+            computerPlayer.ResetTimer();
+        }
         previousFrameTime = 0;
         updateLoop.start();
         GetRoot().requestFocus();
@@ -102,6 +126,9 @@ public class VersusManager {
         if (state != MatchState.RUNNING) return;
         state = MatchState.PAUSED;
         input.SetInputEnabled(false);
+        if (computerPlayer != null) {
+            computerPlayer.SetEnabled(false);
+        }
         updateLoop.stop();
         player1.PauseGame();
         player2.PauseGame();
@@ -114,6 +141,10 @@ public class VersusManager {
         player1.ResumeGame();
         player2.ResumeGame();
         input.SetInputEnabled(true);
+        if (computerPlayer != null) {
+            computerPlayer.SetEnabled(true);
+            computerPlayer.ResetTimer();
+        }
         previousFrameTime = 0;
         updateLoop.start();
         GetRoot().requestFocus();
@@ -168,9 +199,17 @@ public class VersusManager {
     private void EndMatch(MatchOutcome outcome) { // HandlePlayerDefeat, HandleTimeExpired 함수로 호출됨. 게임을 정리하는 역할
         if (state == MatchState.ENDED) return;
         state = MatchState.ENDED;
+        VersusResult.LocalWinLose localWinLose = toLocalWinLose(outcome);
         this.result = new VersusResult(
-                player1.GetScore(), player2.GetScore(), toLocalWinLose(outcome));
+                computerOpponent ? "유저" : "플레이어1",
+                player1.GetScore(),
+                computerOpponent ? "컴퓨터" : "플레이어2",
+                player2.GetScore(),
+                localWinLose);
         input.SetInputEnabled(false);
+        if (computerPlayer != null) {
+            computerPlayer.SetEnabled(false);
+        }
         updateLoop.stop();
         GetRoot().setOnKeyPressed(null);
         GetRoot().setOnKeyReleased(null);

@@ -24,14 +24,25 @@ public class VersusInput {
     // OS가 보내는 반복 누름 이벤트만 걸러낸다. 이전 키로 복귀하지 않는다.
     private final Set<KeyCode> pressedKeys = new HashSet<>(); // 눌린 키들을 저장해서 handleKeyPressed가 호출될 때마다 currentkeys, remainingMs가 초기화되는 걸 막는다.
     private boolean inputEnabled = true;
+    // 컴퓨터가 조작하는 플레이어 인덱스. -1이면 둘 다 사람.
+    private final int computerPlayerIndex;
 
     private record Binding(int playerIndex, ActionType action) {}
 
     public VersusInput(Runnable onPauseRequested, PlayerInput player1, PlayerInput player2,
             List<Map<ActionType, List<KeyCode>>> playerKeyBindings) {
+        this(onPauseRequested, player1, player2, playerKeyBindings, -1);
+    }
+
+    public VersusInput(Runnable onPauseRequested, PlayerInput player1, PlayerInput player2,
+            List<Map<ActionType, List<KeyCode>>> playerKeyBindings, int computerPlayerIndex) {
         this.onPauseRequested = Objects.requireNonNull(onPauseRequested);
         players = List.of(player1, player2);
         keyBindings = CreateKeyBindings(playerKeyBindings);
+        if (computerPlayerIndex < -1 || computerPlayerIndex >= players.size()) {
+            throw new IllegalArgumentException("computerPlayerIndex out of range");
+        }
+        this.computerPlayerIndex = computerPlayerIndex;
     }
 
     private Map<KeyCode, Binding> CreateKeyBindings(
@@ -63,6 +74,8 @@ public class VersusInput {
         if (binding == null || !pressedKeys.add(key)) return;// 만약 누른 키가 눌린 키 셋에 있는 거라면 해당 입력은 처낸다.
         if (binding.action() == ActionType.PAUSE) {
             onPauseRequested.run();
+        } else if (binding.playerIndex() == computerPlayerIndex) {
+            // 컴퓨터 플레이어 키는 무시한다.
         } else {
             currentKeys[binding.playerIndex()] = key;
             remainingMs[binding.playerIndex()] = INITIAL_DELAY_MS;
@@ -87,7 +100,9 @@ public class VersusInput {
         if (!inputEnabled || deltaTimeMs < 0) return;
 
         for (int player = 0; player < players.size(); player++) {
-            
+            if (player == computerPlayerIndex) {
+                continue;
+            }
             KeyCode key = currentKeys[player];
             if (key == null) continue;
             ActionType action = keyBindings.get(key).action();
